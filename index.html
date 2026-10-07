@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 57 - The Traitor And A Debt (RPG)</title>
+    <!-- Tailwind CSS for rich modern UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for RPG Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & Medieval vibe -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a09;
+            color: #f5f5f4;
+            overflow: hidden;
+            user-select: none;
+        }
+        .cinzel {
+            font-family: 'Cinzel', serif;
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+        /* Custom scrollbars for RPG menus */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1c1917;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #78716c;
+            border-radius: 3px;
+        }
+        .rpg-panel {
+            background: rgba(28, 25, 23, 0.95);
+            border: 2px solid #a855f7;
+            box-shadow: 0 0 25px rgba(168, 85, 247, 0.25);
+            backdrop-filter: blur(8px);
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(234, 179, 8, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(234, 179, 8, 0.8); }
+        }
+        .magic-button {
+            animation: pulseGlow 2s infinite;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen relative flex flex-col">
+
+    <!-- Game Viewport (HTML5 Canvas 2.5D / 3D Isometric Projection) -->
+    <div id="game-container" class="absolute inset-0 w-full h-full z-0">
+        <canvas id="gameCanvas" class="w-full h-full bg-stone-950"></canvas>
+    </div>
+
+    <!-- HUD Overlay -->
+    <div id="hud-overlay" class="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-6">
+        <!-- Top Bar: Player Stats & Mini-map -->
+        <div class="flex justify-between items-start w-full">
+            <!-- Player Stats Box -->
+            <div class="rpg-panel p-4 rounded-xl pointer-events-auto flex items-center space-x-4 max-w-md w-full">
+                <div class="relative">
+                    <div class="w-16 h-16 rounded-full bg-purple-900 border-2 border-amber-400 flex items-center justify-center text-2xl font-bold cinzel text-amber-300 shadow-lg">
+                        N
+                    </div>
+                    <span id="player-level" class="absolute -bottom-1 -right-1 bg-amber-500 text-stone-950 text-xs font-black px-1.5 py-0.5 rounded-full">Lv.1</span>
+                </div>
+                <div class="flex-1">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold cinzel text-amber-200 tracking-wider">Narcisco</span>
+                        <span id="player-gold" class="text-xs text-amber-400 font-semibold"><i class="fa-solid fa-coins mr-1"></i>0 Gold</span>
+                    </div>
+                    <!-- HP Bar -->
+                    <div class="w-full bg-stone-800 h-3 rounded-full overflow-hidden border border-stone-700 mb-1.5">
+                        <div id="hp-bar" class="bg-red-600 h-full transition-all duration-300" style="width: 100%;"></div>
+                    </div>
+                    <!-- Mana / Magic Bar -->
+                    <div class="w-full bg-stone-800 h-2.5 rounded-full overflow-hidden border border-stone-700">
+                        <div id="mana-bar" class="bg-purple-500 h-full transition-all duration-300" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Right: Navigation Buttons -->
+            <div class="pointer-events-auto flex space-x-2">
+                <button onclick="toggleModal('story-modal')" class="bg-stone-900/90 hover:bg-purple-900/80 border border-purple-500/50 text-purple-200 px-4 py-2.5 rounded-xl font-semibold shadow-lg transition flex items-center space-x-2">
+                    <i class="fa-solid fa-book-open"></i>
+                    <span class="hidden md:inline">Story Journal</span>
+                </button>
+                <button onclick="toggleModal('quest-modal')" class="bg-stone-900/90 hover:bg-purple-900/80 border border-purple-500/50 text-purple-200 px-4 py-2.5 rounded-xl font-semibold shadow-lg transition flex items-center space-x-2">
+                    <i class="fa-solid fa-scroll"></i>
+                    <span class="hidden md:inline">Quests</span>
+                </button>
+                <button onclick="toggleModal('inventory-modal')" class="bg-stone-900/90 hover:bg-purple-900/80 border border-purple-500/50 text-purple-200 px-4 py-2.5 rounded-xl font-semibold shadow-lg transition flex items-center space-x-2">
+                    <i class="fa-solid fa-backpack"></i>
+                    <span class="hidden md:inline">Inventory</span>
+                </button>
+                <button onclick="toggleModal('skills-modal')" class="bg-stone-900/90 hover:bg-purple-900/80 border border-purple-500/50 text-purple-200 px-4 py-2.5 rounded-xl font-semibold shadow-lg transition flex items-center space-x-2">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span class="hidden md:inline">Skills</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Center/Bottom HUD: Active Quest Tracker & Spell Bar -->
+        <div class="flex flex-col md:flex-row justify-between items-end w-full gap-4">
+            <!-- Quest Tracker Widget -->
+            <div class="rpg-panel p-3 rounded-xl pointer-events-auto max-w-sm w-full hidden md:block">
+                <div class="text-xs uppercase text-purple-400 font-bold tracking-widest mb-1 flex items-center justify-between">
+                    <span><i class="fa-solid fa-bullseye mr-1"></i> Active Quest</span>
+                    <span id="quest-progress-count" class="text-amber-400">0/3</span>
+                </div>
+                <div id="hud-quest-title" class="font-bold text-sm text-stone-100">Pay Off Norseville Poverty</div>
+                <div id="hud-quest-desc" class="text-xs text-stone-400 mt-0.5">Use Lusla Elganio magic to aid poor villagers & defeat corrupt guards.</div>
+            </div>
+
+            <!-- Spell & Action Bar -->
+            <div class="rpg-panel p-3 rounded-2xl pointer-events-auto flex items-center space-x-3 mx-auto md:mx-0 shadow-2xl">
+                <button onclick="castMagicSpell('lusla')" class="magic-button bg-gradient-to-tr from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-stone-950 font-extrabold px-5 py-3 rounded-xl flex flex-col items-center shadow-lg transition transform active:scale-95">
+                    <i class="fa-solid fa-wand-sparkles text-xl mb-1"></i>
+                    <span class="text-xs">Lusla Elganio</span>
+                </button>
+                <button onclick="castMagicSpell('army')" class="bg-gradient-to-tr from-purple-700 to-indigo-600 hover:from-purple-600 hover:to-indigo-500 text-stone-100 font-extrabold px-5 py-3 rounded-xl flex flex-col items-center shadow-lg transition transform active:scale-95 border border-purple-400/30">
+                    <i class="fa-solid fa-users-gear text-xl mb-1"></i>
+                    <span class="text-xs">Humble Army</span>
+                </button>
+                <button onclick="castMagicSpell('blast')" class="bg-gradient-to-tr from-red-700 to-rose-600 hover:from-red-600 hover:to-rose-500 text-stone-100 font-extrabold px-5 py-3 rounded-xl flex flex-col items-center shadow-lg transition transform active:scale-95 border border-red-400/30">
+                    <i class="fa-solid fa-fire text-xl mb-1"></i>
+                    <span class="text-xs">Anti-Greed Blast</span>
+                </button>
+            </div>
+
+            <!-- Mobile / Touch Joystick / Control hint -->
+            <div class="rpg-panel p-3 rounded-xl pointer-events-auto text-xs text-stone-300 hidden lg:block">
+                <div class="font-bold text-amber-300 mb-1"><i class="fa-solid fa-keyboard mr-1"></i> Controls</div>
+                <div><kbd class="bg-stone-800 px-1.5 py-0.5 rounded border border-stone-600 text-amber-200">W A S D</kbd> Move Narcisco</div>
+                <div><kbd class="bg-stone-800 px-1.5 py-0.5 rounded border border-stone-600 text-amber-200">SPACE</kbd> Cast Lusla Magic</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+
+    <!-- Story Journal Modal -->
+    <div id="story-modal" class="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="rpg-panel max-w-2xl w-full max-h-[85vh] rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-purple-500/30 flex justify-between items-center bg-stone-900/80">
+                <h3 class="cinzel text-xl font-bold text-amber-300 flex items-center">
+                    <i class="fa-solid fa-book-bookmark mr-2 text-purple-400"></i> Chapter 57: Bedtime Stories - The Traitor And A Debt
+                </h3>
+                <button onclick="toggleModal('story-modal')" class="text-stone-400 hover:text-stone-100 text-xl px-2">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-6 text-stone-300 text-sm leading-relaxed">
+                <div class="bg-purple-950/40 p-4 rounded-xl border border-purple-500/30">
+                    <p class="font-semibold text-amber-200 mb-1">Written by Jason Jonation</p>
+                    <p class="text-xs text-stone-400">Of Judgement Days And “The Rages Band” • April 8, 2020</p>
+                </div>
+                <div>
+                    <h4 class="cinzel text-base font-bold text-amber-300 mb-2">Chapter 1: Introduction To The Poverty And Debts In Town of Norseville</h4>
+                    <p>Once upon a time in the town of Norseville, the strict businessmen and government officials demanded ruthless tax debts. When workers could not pay the exorbitant monthly demands of $1,000,000, they were plunged into poverty. Enter Narcisco, a diligent worker who wielded magical spells using the sacred words <strong>"Lusla Elganio"</strong> to manifest gold and save the innocent.</p>
+                </div>
+                <div>
+                    <h4 class="cinzel text-base font-bold text-amber-300 mb-2">Chapter 2 & 3: Narcisco's Challenge & Summons of the Humble Army</h4>
+                    <p>Branded a "traitor" by the corrupt government for teaching people how to live without exorbitant debt, Narcisco stood firm against their tanks and enforcers. Using humble magic, he summoned troops and good governments to defeat the greedy regime and restore balance to Norseville.</p>
+                </div>
+                <div class="bg-stone-900 p-4 rounded-xl border border-amber-500/30">
+                    <h4 class="cinzel text-base font-bold text-amber-300 mb-1">Moral Lesson</h4>
+                    <p class="text-amber-100/90 italic">"Be kind and gentle to the poorest people. Be humble to give whatever they are the most poorest... Your money is not your friend hence it is only a liability to defeat poverty. Be contented with what you have."</p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-purple-500/30 bg-stone-900/80 flex justify-end">
+                <button onclick="toggleModal('story-modal')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-2 rounded-xl transition">Close Journal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quests Modal -->
+    <div id="quest-modal" class="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="rpg-panel max-w-xl w-full max-h-[85vh] rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-purple-500/30 flex justify-between items-center bg-stone-900/80">
+                <h3 class="cinzel text-xl font-bold text-amber-300 flex items-center">
+                    <i class="fa-solid fa-scroll mr-2 text-purple-400"></i> Quests of Norseville
+                </h3>
+                <button onclick="toggleModal('quest-modal')" class="text-stone-400 hover:text-stone-100 text-xl px-2">&times;</button>
+            </div>
+            <div id="quest-list-container" class="p-6 overflow-y-auto space-y-4">
+                <!-- Dynamically populated quest list -->
+            </div>
+            <div class="p-4 border-t border-purple-500/30 bg-stone-900/80 flex justify-end">
+                <button onclick="toggleModal('quest-modal')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-2 rounded-xl transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Modal -->
+    <div id="inventory-modal" class="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="rpg-panel max-w-xl w-full max-h-[85vh] rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-purple-500/30 flex justify-between items-center bg-stone-900/80">
+                <h3 class="cinzel text-xl font-bold text-amber-300 flex items-center">
+                    <i class="fa-solid fa-backpack mr-2 text-purple-400"></i> Narcisco's Inventory
+                </h3>
+                <button onclick="toggleModal('inventory-modal')" class="text-stone-400 hover:text-stone-100 text-xl px-2">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <div class="grid grid-cols-4 gap-4" id="inventory-grid">
+                    <!-- Inventory items populated by JS -->
+                </div>
+            </div>
+            <div class="p-4 border-t border-purple-500/30 bg-stone-900/80 flex justify-end">
+                <button onclick="toggleModal('inventory-modal')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-2 rounded-xl transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Skills Modal -->
+    <div id="skills-modal" class="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="rpg-panel max-w-xl w-full max-h-[85vh] rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-purple-500/30 flex justify-between items-center bg-stone-900/80">
+                <h3 class="cinzel text-xl font-bold text-amber-300 flex items-center">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-2 text-purple-400"></i> Magic Skill Tree
+                </h3>
+                <button onclick="toggleModal('skills-modal')" class="text-stone-400 hover:text-stone-100 text-xl px-2">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4">
+                <div class="bg-stone-900 p-4 rounded-xl border border-purple-500/30 flex items-center justify-between">
+                    <div>
+                        <div class="font-bold text-amber-300 cinzel">Lusla Elganio (Gold Manifestation)</div>
+                        <div class="text-xs text-stone-400">Conjures gold and resources to help poor townsfolk of Norseville.</div>
+                    </div>
+                    <span class="bg-green-600/20 text-green-400 px-3 py-1 rounded-lg text-xs font-bold border border-green-500/40">Unlocked</span>
+                </div>
+                <div class="bg-stone-900 p-4 rounded-xl border border-purple-500/30 flex items-center justify-between">
+                    <div>
+                        <div class="font-bold text-amber-300 cinzel">Humble Army Summon</div>
+                        <div class="text-xs text-stone-400">Creates loyal good government troops and workers to fight greed.</div>
+                    </div>
+                    <span class="bg-green-600/20 text-green-400 px-3 py-1 rounded-lg text-xs font-bold border border-green-500/40">Unlocked</span>
+                </div>
+                <div class="bg-stone-900 p-4 rounded-xl border border-purple-500/30 flex items-center justify-between">
+                    <div>
+                        <div class="font-bold text-amber-300 cinzel">Anti-Greed Blast</div>
+                        <div class="text-xs text-stone-400">Releases a wave of honest conscience against tax collector tanks.</div>
+                    </div>
+                    <span class="bg-green-600/20 text-green-400 px-3 py-1 rounded-lg text-xs font-bold border border-green-500/40">Unlocked</span>
+                </div>
+            </div>
+            <div class="p-4 border-t border-purple-500/30 bg-stone-900/80 flex justify-end">
+                <button onclick="toggleModal('skills-modal')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-2 rounded-xl transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Victory / Quest Complete Notification Toast -->
+    <div id="toast-notification" class="absolute top-20 left-1/2 transform -translate-x-1/2 z-40 bg-amber-500 text-stone-950 font-bold px-6 py-3 rounded-2xl shadow-2xl transition-all duration-500 opacity-0 pointer-events-none flex items-center space-x-2">
+        <i class="fa-solid fa-trophy"></i>
+        <span id="toast-text">Quest Updated!</span>
+    </div>
+
+    <!-- Game Engine & Logic Script -->
+    <script>
+        // Modal Toggle Helper
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                if (modalId === 'quest-modal') renderQuests();
+                if (modalId === 'inventory-modal') renderInventory();
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function showToast(text) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-text').innerText = text;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // Game State
+        const gameState = {
+            player: {
+                x: 400,
+                y: 300,
+                speed: 4,
+                radius: 18,
+                hp: 100,
+                maxHp: 100,
+                mana: 100,
+                maxMana: 100,
+                gold: 500,
+                level: 1,
+                exp: 0
+            },
+            camera: {
+                x: 0,
+                y: 0
+            },
+            keys: {},
+            quests: [
+                { id: 1, title: "Pay Off Poverty", desc: "Use 'Lusla Elganio' magic to help 3 poor Norseville villagers.", target: 3, current: 0, completed: false },
+                { id: 2, title: "Defeat Corrupt Enforcers", desc: "Defeat 3 Greedy Tax Collectors or Tanks in Norseville.", target: 3, current: 0, completed: false },
+                { id: 3, title: "Restore Balance & Humble Gov", desc: "Defeat the Corrupt Regime Boss to finish Chapter 57.", target: 1, current: 0, completed: false }
+            ],
+            inventory: [
+                { name: "Magic Wand", type: "Weapon", desc: "Wields the sacred words of Lusla Elganio.", icon: "fa-wand-magic" },
+                { name: "Gold Pouch", type: "Currency", desc: "Contains honest gold for the poor.", icon: "fa-sack-dollar" },
+                { name: "Humble Scroll", type: "Magic", desc: "Summons good government troops.", icon: "fa-scroll" },
+                { name: "Health Potion", type: "Consumable", desc: "Restores 50 HP.", icon: "fa-flask" }
+            ],
+            villagers: [],
+            enemies: [],
+            particles: [],
+            projectiles: []
+        };
+
+        // Render Quests Modal
+        function renderQuests() {
+            const container = document.getElementById('quest-list-container');
+            container.innerHTML = '';
+            gameState.quests.forEach(q => {
+                container.innerHTML += `
+                    <div class="bg-stone-900 p-4 rounded-xl border ${q.completed ? 'border-green-500/50 bg-green-950/20' : 'border-purple-500/30'} flex justify-between items-center">
+                        <div>
+                            <div class="font-bold cinzel text-amber-200">${q.title} ${q.completed ? '<i class="fa-solid fa-check text-green-400 ml-1"></i>' : ''}</div>
+                            <div class="text-xs text-stone-400 mt-1">${q.desc}</div>
+                        </div>
+                        <div class="text-sm font-bold ${q.completed ? 'text-green-400' : 'text-amber-400'}">
+                            ${q.current}/${q.target}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Render Inventory Modal
+        function renderInventory() {
+            const grid = document.getElementById('inventory-grid');
+            grid.innerHTML = '';
+            gameState.inventory.forEach(item => {
+                grid.innerHTML += `
+                    <div class="bg-stone-900 p-4 rounded-xl border border-purple-500/30 flex flex-col items-center text-center">
+                        <div class="w-12 h-12 rounded-full bg-purple-900/50 border border-purple-400 flex items-center justify-center text-amber-300 text-xl mb-2">
+                            <i class="fa-solid ${item.icon}"></i>
+                        </div>
+                        <div class="font-bold text-xs text-amber-200">${item.name}</div>
+                        <div class="text-[10px] text-stone-400 mt-1">${item.desc}</div>
+                    </div>
+                `;
+            });
+        }
+
+        // Initialize Canvas & Entities
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Spawn World Entities (Town of Norseville)
+        function initWorld() {
+            // Spawn Villagers needing help
+            for (let i = 0; i < 5; i++) {
+                gameState.villagers.push({
+                    x: Math.random() * 2000 - 1000,
+                    y: Math.random() * 2000 - 1000,
+                    radius: 14,
+                    helped: false,
+                    name: "Villager #" + (i + 1)
+                });
+            }
+            // Spawn Corrupt Guards & Tax Collector Tanks
+            for (let i = 0; i < 6; i++) {
+                gameState.enemies.push({
+                    x: Math.random() * 2000 - 1000,
+                    y: Math.random() * 2000 - 1000,
+                    radius: 18,
+                    hp: 60,
+                    maxHp: 60,
+                    speed: 1.5,
+                    type: i % 2 === 0 ? 'guard' : 'tank'
+                });
+            }
+            // Spawn Boss: Corrupt Political Regime Leader
+            gameState.enemies.push({
+                x: 800,
+                y: 800,
+                radius: 30,
+                hp: 200,
+                maxHp: 200,
+                speed: 1.0,
+                type: 'boss'
+            });
+        }
+        initWorld();
+
+        // Input Listeners
+        window.addEventListener('keydown', (e) => {
+            gameState.keys[e.key.toLowerCase()] = true;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                castMagicSpell('lusla');
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            gameState.keys[e.key.toLowerCase()] = false;
+        });
+
+        // Cast Magic Spells
+        function castMagicSpell(type) {
+            if (gameState.player.mana < 20 && type !== 'lusla') {
+                showToast("Not enough mana!");
+                return;
+            }
+            if (type !== 'lusla') gameState.player.mana -= 20;
+
+            if (type === 'lusla') {
+                showToast("Lusla Elganio! Gold manifested for Norseville poor.");
+                gameState.player.gold += 100;
+                // Check villager rescue
+                gameState.villagers.forEach(v => {
+                    const dist = Math.hypot(v.x - gameState.player.x, v.y - gameState.player.y);
+                    if (dist < 150 && !v.helped) {
+                        v.helped = true;
+                        updateQuest(1, 1);
+                        showToast(v.name + " saved with magic gold!");
+                    }
+                });
+                // Particle effect
+                for(let i=0; i<15; i++) {
+                    gameState.particles.push({
+                        x: gameState.player.x,
+                        y: gameState.player.y,
+                        vx: (Math.random() - 0.5) * 6,
+                        vy: (Math.random() - 0.5) * 6,
+                        color: '#fbbf24',
+                        life: 40
+                    });
+                }
+            } else if (type === 'army') {
+                showToast("Humble Army Summoned to defend Norseville!");
+                // Deal AOE damage to nearby enemies
+                gameState.enemies.forEach(en => {
+                    const dist = Math.hypot(en.x - gameState.player.x, en.y - gameState.player.y);
+                    if (dist < 200) {
+                        en.hp -= 40;
+                    }
+                });
+            } else if (type === 'blast') {
+                showToast("Anti-Greed Blast unleashed!");
+                gameState.enemies.forEach(en => {
+                    const dist = Math.hypot(en.x - gameState.player.x, en.y - gameState.player.y);
+                    if (dist < 250) {
+                        en.hp -= 70;
+                    }
+                });
+            }
+        }
+
+        function updateQuest(questId, amount) {
+            const q = gameState.quests.find(item => item.id === questId);
+            if (q && !q.completed) {
+                q.current = Math.min(q.target, q.current + amount);
+                if (q.current >= q.target) {
+                    q.completed = true;
+                    showToast("Quest Completed: " + q.title);
+                }
+                document.getElementById('quest-progress-count').innerText = `${q.current}/${q.target}`;
+                document.getElementById('hud-quest-title').innerText = q.title;
+                document.getElementById('hud-quest-desc').innerText = q.desc;
+            }
+        }
+
+        // Game Update Loop
+        function update() {
+            // Player Movement
+            let dx = 0;
+            let dy = 0;
+            if (gameState.keys['w'] || gameState.keys['arrowup']) dy -= 1;
+            if (gameState.keys['s'] || gameState.keys['arrowdown']) dy += 1;
+            if (gameState.keys['a'] || gameState.keys['arrowleft']) dx -= 1;
+            if (gameState.keys['d'] || gameState.keys['arrowright']) dx += 1;
+
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.7071;
+                dy *= 0.7071;
+            }
+
+            gameState.player.x += dx * gameState.player.speed;
+            gameState.player.y += dy * gameState.player.speed;
+
+            // Camera follow
+            gameState.camera.x = gameState.player.x - canvas.width / 2;
+            gameState.camera.y = gameState.player.y - canvas.height / 2;
+
+            // Regen Mana
+            if (gameState.player.mana < gameState.player.maxMana) {
+                gameState.player.mana += 0.1;
+            }
+
+            // Enemy AI & Combat
+            gameState.enemies.forEach(en => {
+                const distToPlayer = Math.hypot(gameState.player.x - en.x, gameState.player.y - en.y);
+                if (distToPlayer < 400 && distToPlayer > 25) {
+                    const angle = Math.atan2(gameState.player.y - en.y, gameState.player.x - en.x);
+                    en.x += Math.cos(angle) * en.speed;
+                    en.y += Math.sin(angle) * en.speed;
+                }
+                // Attack player if close
+                if (distToPlayer < 30) {
+                    gameState.player.hp -= 0.5;
+                    if (gameState.player.hp <= 0) {
+                        gameState.player.hp = gameState.player.maxHp;
+                        showToast("Narcisco stood back up! The Norseville resistance continues.");
+                    }
+                }
+            });
+
+            // Remove defeated enemies & check quest 2 / 3
+            let defeatedCount = 0;
+            gameState.enemies = gameState.enemies.filter(en => {
+                if (en.hp <= 0) {
+                    if (en.type === 'boss') {
+                        updateQuest(3, 1);
+                        showToast("Victory! Corrupt Regime Defeated! Norseville is free.");
+                    } else {
+                        defeatedCount++;
+                    }
+                    return false;
+                }
+                return true;
+            });
+            if (defeatedCount > 0) {
+                updateQuest(2, defeatedCount);
+            }
+
+            // Update Particles
+            gameState.particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 1;
+            });
+            gameState.particles = gameState.particles.filter(p => p.life > 0);
+
+            // Update UI elements
+            document.getElementById('hp-bar').style.width = (gameState.player.hp / gameState.player.maxHp * 100) + '%';
+            document.getElementById('mana-bar').style.width = (gameState.player.mana / gameState.player.maxMana * 100) + '%';
+            document.getElementById('player-gold').innerHTML = `<i class="fa-solid fa-coins mr-1"></i>${Math.floor(gameState.player.gold)} Gold`;
+            document.getElementById('player-level').innerText = `Lv.${gameState.player.level}`;
+        }
+
+        // Render Game Canvas (2.5D Isometric World of Norseville)
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(-gameState.camera.x, -gameState.camera.y);
+
+            // Draw Norseville Grid / Ground Texture
+            ctx.fillStyle = '#1c1917';
+            ctx.fillRect(-2000, -2000, 5000, 5000);
+
+            // Draw Town Roads & Grid lines
+            ctx.strokeStyle = '#292524';
+            ctx.lineWidth = 2;
+            for (let x = -2000; x < 3000; x += 100) {
+                ctx.beginPath();
+                ctx.moveTo(x, -2000);
+                ctx.lineTo(x, 3000);
+                ctx.stroke();
+            }
+            for (let y = -2000; y < 3000; y += 100) {
+                ctx.beginPath();
+                ctx.moveTo(-2000, y);
+                ctx.lineTo(3000, y);
+                ctx.stroke();
+            }
+
+            // Draw Norseville Buildings / Landmarks
+            ctx.fillStyle = '#292524';
+            ctx.fillRect(-600, -600, 300, 200);
+            ctx.fillStyle = '#78716c';
+            ctx.font = '12px Cinzel';
+            ctx.fillText("Norseville Central Bank (Debt HQ)", -580, -620);
+
+            // Draw Villagers
+            gameState.villagers.forEach(v => {
+                ctx.beginPath();
+                ctx.arc(v.x, v.y, v.radius, 0, Math.PI * 2);
+                ctx.fillStyle = v.helped ? '#22c55e' : '#eab308';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#713f12';
+                ctx.stroke();
+
+                ctx.fillStyle = '#f5f5f4';
+                ctx.font = '10px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(v.helped ? "Saved" : "Needs Help", v.x, v.y - 20);
+            });
+
+            // Draw Enemies (Guards & Tanks)
+            gameState.enemies.forEach(en => {
+                ctx.beginPath();
+                ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
+                if (en.type === 'boss') ctx.fillStyle = '#9333ea';
+                else if (en.type === 'tank') ctx.fillStyle = '#ef4444';
+                else ctx.fillStyle = '#dc2626';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#7f1d1d';
+                ctx.stroke();
+
+                // Health bar
+                ctx.fillStyle = '#000';
+                ctx.fillRect(en.x - 20, en.y - 30, 40, 6);
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(en.x - 20, en.y - 30, 40 * (en.hp / en.maxHp), 6);
+
+                ctx.fillStyle = '#f5f5f4';
+                ctx.font = '10px Cinzel';
+                ctx.textAlign = 'center';
+                ctx.fillText(en.type === 'boss' ? "Regime Boss" : (en.type === 'tank' ? "Tax Tank" : "Guard"), en.x, en.y - 38);
+            });
+
+            // Draw Narcisco (Player)
+            ctx.beginPath();
+            ctx.arc(gameState.player.x, gameState.player.y, gameState.player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#a855f7';
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.fillStyle = '#f5f5f4';
+            ctx.strokeStyle = '#facc15';
+            ctx.stroke();
+
+            ctx.fillStyle = '#facc15';
+            ctx.font = 'bold 12px Cinzel';
+            ctx.textAlign = 'center';
+            ctx.fillText("Narcisco", gameState.player.x, gameState.player.y - 26);
+
+            // Draw Particles (Magic Gold / Spells)
+            gameState.particles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.fill();
+            });
+
+            ctx.restore();
+        }
+
+        // Main Game Loop
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start Game on load
+        window.onload = function() {
+            gameLoop();
+        };
+    </script>
+
+</body>
+</html>
